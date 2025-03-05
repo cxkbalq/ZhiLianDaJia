@@ -7,6 +7,10 @@ import java.math.RoundingMode;
 
 global com.atguigu.daijia.model.vo.rules.FeeRuleResponse feeRuleResponse;
 
+
+
+
+
 /**
 1.起步价
     00:00:00-06:59:59  19元(含3公里)

@@ -17,6 +17,7 @@ public enum ResultCodeEnum {
     REPEAT_SUBMIT(206, "重复提交"),
     FEIGN_FAIL(207, "远程调用失败"),
     UPDATE_ERROR(204, "数据更新失败"),
+    WX_CODE_ERROR(555,"微信数据异常"),
 
     ARGUMENT_VALID_ERROR(210, "参数校验异常"),
     SIGN_ERROR(300, "签名错误"),
@@ -45,7 +46,7 @@ public enum ResultCodeEnum {
     COUPON_EXPIRE( 250, "优惠券已过期"),
     COUPON_LESS( 250, "优惠券库存不足"),
     COUPON_USER_LIMIT( 250, "超出领取数量"),
-    ;
+    FACE_FAIL(301, "人脸识别失败");
 
     private Integer code;
 

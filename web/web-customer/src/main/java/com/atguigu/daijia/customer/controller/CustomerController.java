@@ -1,7 +1,7 @@
 package com.atguigu.daijia.customer.controller;
 
 import com.atguigu.daijia.common.result.Result;
-import com.atguigu.daijia.common.zhuJie.checkLogin;
+import com.atguigu.daijia.common.zhuJie.CheckLogin;
 import com.atguigu.daijia.customer.service.CustomerService;
 import com.atguigu.daijia.model.vo.customer.CustomerLoginVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +29,7 @@ public class CustomerController {
         return Result.ok(customerInfoService.login(code));
     }
 
-    @checkLogin
+    @CheckLogin
     @Operation(summary = "获取客户登录信息")
     @GetMapping("/getCustomerLoginInfo")
     public Result<CustomerLoginVo> getCustomerLoginInfo(HttpServletRequest request) {

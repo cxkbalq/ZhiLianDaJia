@@ -26,8 +26,10 @@
 
     <properties>
         <java.version>17</java.version>
+<!--        <cloud.version>2023.0.0</cloud.version>-->
         <cloud.version>2022.0.2</cloud.version>
         <alibaba.version>2022.0.0.0-RC2</alibaba.version>
+<!--        <alibaba.version>2023.0.0</alibaba.version>-->
         <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
         <mysql.version>8.0.30</mysql.version>
         <knife4j.version>4.1.0</knife4j.version>

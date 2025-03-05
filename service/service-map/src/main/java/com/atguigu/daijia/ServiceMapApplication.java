@@ -21,4 +21,9 @@ public class ServiceMapApplication {
     public RestTemplate restTemplate() {
         return new RestTemplate();
     }
+//    @Bean
+//    public MongoTemplate mongoTemplate(){
+//        return new MongoTemplate();
+//    }
+
 }

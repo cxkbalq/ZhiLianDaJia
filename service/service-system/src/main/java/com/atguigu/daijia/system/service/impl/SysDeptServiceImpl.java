@@ -1,6 +1,6 @@
 package com.atguigu.daijia.system.service.impl;
 
-import com.atguigu.daijia.common.execption.GuiguException;
+import com.atguigu.daijia.common.execption.zdyException;
 import com.atguigu.daijia.common.result.ResultCodeEnum;
 import com.atguigu.daijia.model.entity.system.SysDept;
 import com.atguigu.daijia.system.helper.DeptHelper;
@@ -47,7 +47,7 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
     public boolean removeById(Serializable id) {
         long count = this.count(new LambdaQueryWrapper<SysDept>().eq(SysDept::getParentId, id));
         if(count > 0) {
-            throw new GuiguException(ResultCodeEnum.NODE_ERROR);
+            throw new zdyException(ResultCodeEnum.NODE_ERROR);
         }
         sysDeptMapper.deleteById(id);
         return false;
