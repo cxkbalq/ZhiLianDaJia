@@ -8,6 +8,7 @@ import com.atguigu.daijia.model.vo.map.NearByDriverVo;
 import com.atguigu.daijia.model.vo.map.OrderLocationVo;
 import com.atguigu.daijia.model.vo.map.OrderServiceLastLocationVo;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface LocationService {
@@ -25,4 +26,6 @@ public interface LocationService {
     Boolean saveOrderServiceLocation(List<OrderServiceLocationForm> orderLocationServiceFormList);
 
     OrderServiceLastLocationVo getOrderServiceLastLocation(Long orderId);
+
+    BigDecimal calculateOrderRealDistance(Long orderId);
 }

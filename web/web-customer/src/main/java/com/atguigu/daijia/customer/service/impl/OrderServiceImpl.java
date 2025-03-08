@@ -8,11 +8,13 @@ import com.atguigu.daijia.driver.client.DriverInfoFeignClient;
 import com.atguigu.daijia.map.client.LocationFeignClient;
 import com.atguigu.daijia.map.client.MapFeignClient;
 import com.atguigu.daijia.model.entity.order.OrderInfo;
+import com.atguigu.daijia.model.enums.OrderStatus;
 import com.atguigu.daijia.model.form.customer.ExpectOrderForm;
 import com.atguigu.daijia.model.form.customer.SubmitOrderForm;
 import com.atguigu.daijia.model.form.map.CalculateDrivingLineForm;
 import com.atguigu.daijia.model.form.order.OrderInfoForm;
 import com.atguigu.daijia.model.form.rules.FeeRuleRequestForm;
+import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.customer.ExpectOrderVo;
 import com.atguigu.daijia.model.vo.dispatch.NewOrderTaskVo;
 import com.atguigu.daijia.model.vo.driver.DriverInfoVo;
@@ -20,6 +22,7 @@ import com.atguigu.daijia.model.vo.map.DrivingLineVo;
 import com.atguigu.daijia.model.vo.map.OrderLocationVo;
 import com.atguigu.daijia.model.vo.map.OrderServiceLastLocationVo;
 import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
+import com.atguigu.daijia.model.vo.order.OrderBillVo;
 import com.atguigu.daijia.model.vo.order.OrderInfoVo;
 import com.atguigu.daijia.model.vo.rules.FeeRuleResponseVo;
 import com.atguigu.daijia.order.client.OrderInfoFeignClient;
@@ -30,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @Service
@@ -52,6 +57,8 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private LocationFeignClient locationFeignClient;
+    @Autowired
+    private ThreadPoolExecutor pool;
 
     @Override
     public ExpectOrderVo expectOrder(ExpectOrderForm expectOrderForm) {
@@ -158,19 +165,52 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     public OrderInfoVo getOrderInfo(Long orderId, Long customerId) {
-        //订单信息
-        OrderInfo orderInfo = orderInfoFeignClient.getOrderInfo(orderId).getData();
+        // 异步获取订单信息并校验客户ID
+        CompletableFuture<OrderInfo> orderInfoFuture = CompletableFuture.supplyAsync(() ->
+                        orderInfoFeignClient.getOrderInfo(orderId).getData(), pool)
+                .thenApply(orderInfo -> {
+                    if (orderInfo.getCustomerId().longValue() != customerId.longValue()) {
+                        throw new zdyException(ResultCodeEnum.ILLEGAL_REQUEST);
+                    }
+                    return orderInfo;
+                });
 
-        //进行二次验证，保证是自己的订单
-        if (orderInfo.getCustomerId().longValue() != customerId.longValue()) {
-            throw new zdyException(ResultCodeEnum.ILLEGAL_REQUEST);
-        }
+        // 并行获取司机信息和账单信息
+        CompletableFuture<DriverInfoVo> driverInfoFuture = orderInfoFuture.thenComposeAsync(orderInfo ->
+                        (orderInfo.getDriverId() != null) ?
+                                CompletableFuture.supplyAsync(() ->
+                                        driverInfoFeignClient.getDriverInfo(orderInfo.getDriverId()).getData(), pool) :
+                                CompletableFuture.completedFuture(null),
+                pool);
 
-        //封装订单信息
-        OrderInfoVo orderInfoVo = new OrderInfoVo();
-        orderInfoVo.setOrderId(orderId);
-        BeanUtils.copyProperties(orderInfo, orderInfoVo);
-        return orderInfoVo;
+        CompletableFuture<OrderBillVo> orderBillFuture = orderInfoFuture.thenComposeAsync(orderInfo ->
+                        (orderInfo.getStatus().intValue() >= OrderStatus.UNPAID.getStatus().intValue()) ?
+                                CompletableFuture.supplyAsync(() ->
+                                        orderInfoFeignClient.getOrderBillInfo(orderId).getData(), pool) :
+                                CompletableFuture.completedFuture(null),
+                pool);
+
+        // 组合所有结果
+        return orderInfoFuture
+                .thenCombine(driverInfoFuture, (orderInfo, driverInfo) -> {
+                    OrderInfoVo vo = new OrderInfoVo();
+                    vo.setOrderId(orderId);
+                    BeanUtils.copyProperties(orderInfo, vo);
+                    vo.setDriverInfoVo(driverInfo);
+                    return vo;
+                })
+                .thenCombine(orderBillFuture, (vo, orderBill) -> {
+                    vo.setOrderBillVo(orderBill);
+                    return vo;
+                })
+                .exceptionally(e -> {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof zdyException) {
+                        throw (zdyException) cause;
+                    }
+                    throw new RuntimeException("Failed to get order info", cause);
+                })
+                .join();
     }
 
     /**
@@ -213,6 +253,7 @@ public class OrderServiceImpl implements OrderService {
 
     /**
      * 获取订单服务最后一个位置信息
+     *
      * @param orderId
      * @return
      */
@@ -221,4 +262,27 @@ public class OrderServiceImpl implements OrderService {
         return locationFeignClient.getOrderServiceLastLocation(orderId).getData();
     }
 
+    /**
+     * 获取乘客订单分页列表
+     *
+     * @param customerId
+     * @param page
+     * @param limit
+     * @return
+     */
+    @Override
+    public PageVo findCustomerOrderPage(Long customerId, Long page, Long limit) {
+        return orderInfoFeignClient.findCustomerOrderPage(customerId, page, limit).getData();
+    }
+
+    /**
+     * 乘客取消订单
+     *
+     * @param orderId
+     * @return
+     */
+    @Override
+    public Boolean customerCancelNoAcceptOrder(Long orderId) {
+        return newOrderFeignClient.customerCancelNoAcceptOrder(orderId).getData();
+    }
 }

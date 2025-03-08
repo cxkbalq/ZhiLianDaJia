@@ -34,7 +34,7 @@ public class checkLoginAspect {
 
     @Around("execution(* com.atguigu.daijia.*.controller.*.*(..)) && @annotation(checklogin)")
     public Object login(ProceedingJoinPoint joinPoint, CheckLogin checklogin) throws Throwable {
-        log.info("进入 checkLogin 切面");
+        //log.info("进入 checkLogin 切面");
         try {
             // 当前线程相关的请求上下文信息
             RequestAttributes ra = RequestContextHolder.getRequestAttributes();
@@ -45,8 +45,9 @@ public class checkLoginAspect {
             if (!StringUtils.hasText(token)) {
                 throw new zdyException(ResultCodeEnum.LOGIN_AUTH);
             }
+            //user:login
             String userId = (String) redisTemplate.opsForValue().get(RedisConstant.USER_LOGIN_KEY_PREFIX + token);
-            log.info("当前登录用户id：" + userId);
+           // log.info("当前登录用户id：" + userId);
             if (StringUtils.hasText(userId)) {
                 AuthContextHolder.setUserId(Long.parseLong(userId));
             }

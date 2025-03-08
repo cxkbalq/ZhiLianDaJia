@@ -23,7 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping(value = "/location")
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class LocationController {
+public class  LocationController {
     @Autowired
     private LocationService locationService;
 
@@ -48,6 +48,7 @@ public class LocationController {
     @CheckLogin
     @PostMapping("/updateOrderLocationToCache")
     public Result updateOrderLocationToCache(@RequestBody UpdateOrderLocationForm updateOrderLocationForm) {
+        log.info("司机赶往代驾起始点：更新订单位置到Redis缓存");
         return Result.ok(locationService.updateOrderLocationToCache(updateOrderLocationForm));
     }
 

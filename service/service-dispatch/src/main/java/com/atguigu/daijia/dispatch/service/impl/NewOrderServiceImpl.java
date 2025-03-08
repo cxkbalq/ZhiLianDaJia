@@ -164,6 +164,8 @@ public class NewOrderServiceImpl implements NewOrderService {
         return list;
     }
 
+
+
     /**
      * 清理订单（下线的情况）
      * @param driverId
@@ -176,5 +178,28 @@ public class NewOrderServiceImpl implements NewOrderService {
         //直接删除，司机开启服务后，有新订单会自动创建容器
         redisTemplate.delete(key);
         return true;
+    }
+
+    /**
+     * 用户取消订单
+     * @param orderId
+     * @return
+     */
+    @Override
+    public Boolean customerCancelNoAcceptOrder(Long orderId) {
+         log.info( "关闭任务调度orderid:"+orderId.toString());
+         //查询现在订单
+        LambdaQueryWrapper<OrderJob> lambdaQueryWrapper = new LambdaQueryWrapper<>();
+        lambdaQueryWrapper.eq(OrderJob::getOrderId, orderId);
+        //关闭任务调度
+        OrderJob orderJob = orderJobMapper.selectOne(lambdaQueryWrapper);
+        xxlJobClient.removeJob(orderJob.getJobId());
+        //清楚redis缓存
+        String repeatKey = RedisConstant.DRIVER_ORDER_REPEAT_LIST +orderId;
+        //将其从司机里面删除
+        redisTemplate.delete(repeatKey);
+        //更新数据库信息
+        orderInfoFeignClient.customerCancelNoAcceptOrder(orderId);
+        return  true;
     }
 }

@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Slf4j
@@ -66,6 +67,12 @@ public class LocationController {
     @GetMapping("/getOrderServiceLastLocation/{orderId}")
     public Result<OrderServiceLastLocationVo> getOrderServiceLastLocation(@PathVariable Long orderId) {
         return Result.ok(locationService.getOrderServiceLastLocation(orderId));
+    }
+
+    @Operation(summary = "代驾服务：计算订单实际里程")
+    @GetMapping("/calculateOrderRealDistance/{orderId}")
+    public Result<BigDecimal> calculateOrderRealDistance(@PathVariable Long orderId) {
+        return Result.ok(locationService.calculateOrderRealDistance(orderId));
     }
 }
 

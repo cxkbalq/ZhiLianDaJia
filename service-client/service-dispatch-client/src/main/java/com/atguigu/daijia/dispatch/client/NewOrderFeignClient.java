@@ -40,4 +40,12 @@ public interface NewOrderFeignClient {
      */
     @GetMapping("/dispatch/newOrder/clearNewOrderQueueData/{driverId}")
     Result<Boolean> clearNewOrderQueueData(@PathVariable("driverId") Long driverId);
+
+    /**
+     * 用户取消订单
+     * @param orderId
+     * @return
+     */
+    @GetMapping("/dispatch/newOrder/customerCancelNoAcceptOrder/{orderId}")
+    Result<Boolean>  customerCancelNoAcceptOrder(@PathVariable("orderId")Long orderId);
 }

@@ -14,4 +14,6 @@ public interface NewOrderService {
     List<NewOrderDataVo> findNewOrderQueueData(Long driverId);
 
     Boolean clearNewOrderQueueData(Long driverId);
+
+    Boolean customerCancelNoAcceptOrder(Long orderId);
 }

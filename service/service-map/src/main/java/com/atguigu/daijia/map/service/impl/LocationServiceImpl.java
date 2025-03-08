@@ -3,6 +3,8 @@ package com.atguigu.daijia.map.service.impl;
 import com.atguigu.daijia.common.constant.RedisConstant;
 import com.atguigu.daijia.common.constant.SystemConstant;
 import com.atguigu.daijia.common.execption.zdyException;
+import com.atguigu.daijia.common.result.ResultCodeEnum;
+import com.atguigu.daijia.common.util.LocationUtil;
 import com.atguigu.daijia.driver.client.DriverInfoFeignClient;
 import com.atguigu.daijia.map.service.LocationService;
 import com.atguigu.daijia.model.entity.driver.DriverSet;
@@ -18,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.geo.*;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -119,14 +122,17 @@ public class LocationServiceImpl implements LocationService {
         List<Long> driverId = new ArrayList<>();
         for (GeoResult<RedisGeoCommands.GeoLocation<String>> item : content) {
             driverId.add(Long.parseLong(item.getContent().getName()));
+            log.info("当前搜索到司机为id为：" + item.getContent().getName());
         }
+        List<NearByDriverVo> list = new ArrayList();
 
+        if (driverId == null) {
+            return list;
+        }
         //发起远程调用
         List<DriverSet> data = driverInfoFeignClient.getListDriverSet(driverId).getData();
 
         //返回计算后的信息
-        List<NearByDriverVo> list = new ArrayList();
-
         if (data != null && data.size() == 0) {
             return list;
         }
@@ -174,6 +180,16 @@ public class LocationServiceImpl implements LocationService {
         orderLocationVo.setLatitude(updateOrderLocationForm.getLatitude());
         //"update:order:location:"; UPDATE_ORDER_LOCATION
         redisTemplate.opsForValue().set(RedisConstant.UPDATE_ORDER_LOCATION + updateOrderLocationForm.getOrderId(), orderLocationVo);
+
+        /**
+         * // 立即获取刚设置的值,这里经过测试，如果没有缓存成功，重新登录就可以，
+         * 而且没有缓存成功不影响接单，但是会使后面功能报错，只需重新登录就能缓存成功，暂时并不知道为什么
+         */
+        OrderLocationVo cachedVo = (OrderLocationVo) redisTemplate.opsForValue().get(RedisConstant.UPDATE_ORDER_LOCATION + updateOrderLocationForm.getOrderId());
+        if(cachedVo==null){
+            //抛异常，让其重新登录
+            new zdyException(ResultCodeEnum.WX_CODE_ERROR);
+        }
         return true;
     }
 
@@ -221,7 +237,6 @@ public class LocationServiceImpl implements LocationService {
      */
     @Override
     public OrderServiceLastLocationVo getOrderServiceLastLocation(Long orderId) {
-
         Query query = new Query();
         query.addCriteria(Criteria.where("orderId").is(orderId));
         query.with(Sort.by(Sort.Order.desc("createTime")));
@@ -230,6 +245,38 @@ public class LocationServiceImpl implements LocationService {
         OrderServiceLastLocationVo orderServiceLastLocationVo = new OrderServiceLastLocationVo();
         BeanUtils.copyProperties(one, orderServiceLastLocationVo);
         return orderServiceLastLocationVo;
+    }
+
+    /**
+     * 计算实际路程
+     *
+     * @param orderId
+     * @return
+     */
+    @Override
+    public BigDecimal calculateOrderRealDistance(Long orderId) {
+        OrderServiceLocation orderServiceLocation = new OrderServiceLocation();
+        orderServiceLocation.setOrderId(orderId);
+        Example example = Example.of(orderServiceLocation);
+        Sort sort = Sort.by(Sort.Direction.ASC, "createTime");
+        List<OrderServiceLocation> all = mongoRepository.findAll(example, sort);
+        //实际距离
+        double realDistance = 0;
+        if (all != null && all.size() != 0) {
+            for (int i = 0; i < all.size() - 1; i++) {
+                OrderServiceLocation location1 = all.get(i);
+                OrderServiceLocation location2 = all.get(i + 1);
+
+                //计算位置距离
+                double distance = LocationUtil.getDistance(location1.getLatitude().doubleValue(),
+                        location1.getLongitude().doubleValue(),
+                        location2.getLatitude().doubleValue(),
+                        location2.getLongitude().doubleValue());
+
+                realDistance += distance;
+            }
+        }
+        return new BigDecimal(realDistance);
     }
 
 

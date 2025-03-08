@@ -40,5 +40,12 @@ public class NewOrderController {
         return Result.ok(newOrderService.clearNewOrderQueueData(driverId));
     }
 
+    @Operation(summary = "用户取消任务调度")
+    @GetMapping("/customerCancelNoAcceptOrder/{orderId}")
+    public Result<Boolean> customerCancelNoAcceptOrder(@PathVariable Long orderId){
+        log.info("用户取消任务调度");
+        return Result.ok(newOrderService.customerCancelNoAcceptOrder(orderId));
+    }
+
 }
 

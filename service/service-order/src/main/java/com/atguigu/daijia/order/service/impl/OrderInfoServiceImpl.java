@@ -3,17 +3,28 @@ package com.atguigu.daijia.order.service.impl;
 import com.atguigu.daijia.common.constant.RedisConstant;
 import com.atguigu.daijia.common.execption.zdyException;
 import com.atguigu.daijia.common.result.ResultCodeEnum;
+import com.atguigu.daijia.model.entity.order.OrderBill;
 import com.atguigu.daijia.model.entity.order.OrderInfo;
+import com.atguigu.daijia.model.entity.order.OrderProfitsharing;
 import com.atguigu.daijia.model.entity.order.OrderStatusLog;
 import com.atguigu.daijia.model.enums.OrderStatus;
 import com.atguigu.daijia.model.form.order.OrderInfoForm;
 import com.atguigu.daijia.model.form.order.StartDriveForm;
+import com.atguigu.daijia.model.form.order.UpdateOrderBillForm;
 import com.atguigu.daijia.model.form.order.UpdateOrderCartForm;
+import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
+import com.atguigu.daijia.model.vo.order.OrderBillVo;
+import com.atguigu.daijia.model.vo.order.OrderListVo;
+import com.atguigu.daijia.model.vo.order.OrderProfitsharingVo;
+import com.atguigu.daijia.order.mapper.OrderBillMapper;
 import com.atguigu.daijia.order.mapper.OrderInfoMapper;
+import com.atguigu.daijia.order.mapper.OrderProfitsharingMapper;
 import com.atguigu.daijia.order.mapper.OrderStatusLogMapper;
 import com.atguigu.daijia.order.service.OrderInfoService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -39,11 +50,14 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     private OrderInfoMapper orderInfoMapper;
     @Autowired
     private RedissonClient redissonClient;
+    @Autowired
+    private OrderBillMapper orderBillMapper;
+    @Autowired
+    private OrderProfitsharingMapper orderProfitsharingMapper;
 
     /**
      * 保存订单信息
      *
-     * @param orderInfoForm
      * @return
      */
     @Override
@@ -275,6 +289,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
     /**
      * 更新时间订单状态
+     *
      * @param updateOrderCartForm
      * @return
      */
@@ -305,21 +320,193 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
      */
     @Override
     public Boolean startDriver(StartDriveForm startDriveForm) {
-    //根据订单id  +  司机id  更新订单状态 和 开始代驾时间
-    LambdaQueryWrapper<OrderInfo> wrapper = new LambdaQueryWrapper<>();
-    wrapper.eq(OrderInfo::getId,startDriveForm.getOrderId());
-    wrapper.eq(OrderInfo::getDriverId,startDriveForm.getDriverId());
+        //根据订单id  +  司机id  更新订单状态 和 开始代驾时间
+        LambdaQueryWrapper<OrderInfo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(OrderInfo::getId, startDriveForm.getOrderId());
+        wrapper.eq(OrderInfo::getDriverId, startDriveForm.getDriverId());
 
-    OrderInfo orderInfo = new OrderInfo();
-    orderInfo.setStatus(OrderStatus.START_SERVICE.getStatus());
-    orderInfo.setStartServiceTime(new Date());
-    //更新成功返回1
-    int rows = orderInfoMapper.update(orderInfo, wrapper);
-    if(rows == 1) {
-        return true;
-    } else {
-        throw new zdyException(ResultCodeEnum.UPDATE_ERROR);
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setStatus(OrderStatus.START_SERVICE.getStatus());
+        orderInfo.setStartServiceTime(new Date());
+        orderInfo.setUpdateTime(new Date());
+        //更新成功返回1
+        int rows = orderInfoMapper.update(orderInfo, wrapper);
+        if (rows == 1) {
+            return true;
+        } else {
+            throw new zdyException(ResultCodeEnum.UPDATE_ERROR);
+        }
     }
+
+    /**
+     * 根据时间段获取总订单
+     *
+     * @param startTime
+     * @param endTime
+     * @return
+     */
+    @Override
+    public Long getOrderNumByTime(String startTime, String endTime) {
+        LambdaQueryWrapper<OrderInfo> lambdaQueryWrapper = new LambdaQueryWrapper<>();
+        lambdaQueryWrapper.ge(OrderInfo::getStartServiceTime, startTime);
+        lambdaQueryWrapper.lt(OrderInfo::getEndServiceTime, endTime);
+        Long l = orderInfoMapper.selectCount(lambdaQueryWrapper);
+        return l;
+    }
+
+    /**
+     * 结束服务
+     *
+     * @param updateOrderBillForm
+     * @return
+     */
+    @Override
+    @Transactional
+    public Boolean endDriver(UpdateOrderBillForm updateOrderBillForm) {
+        //更新订单信息
+        LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(OrderInfo::getId, updateOrderBillForm.getOrderId());
+        queryWrapper.eq(OrderInfo::getDriverId, updateOrderBillForm.getDriverId());
+        //更新字段
+        OrderInfo updateOrderInfo = new OrderInfo();
+        updateOrderInfo.setStatus(OrderStatus.END_SERVICE.getStatus());
+        updateOrderInfo.setRealAmount(updateOrderBillForm.getTotalAmount());
+        updateOrderInfo.setFavourFee(updateOrderBillForm.getFavourFee());
+        updateOrderInfo.setEndServiceTime(new Date());
+        updateOrderInfo.setRealDistance(updateOrderBillForm.getRealDistance());
+        //只能更新自己的订单
+        int row = orderInfoMapper.update(updateOrderInfo, queryWrapper);
+        if (row == 1) {
+            //记录日志
+            this.log(updateOrderBillForm.getOrderId(), OrderStatus.END_SERVICE.getStatus());
+
+            //插入实际账单数据
+            OrderBill orderBill = new OrderBill();
+            BeanUtils.copyProperties(updateOrderBillForm, orderBill);
+            orderBill.setOrderId(updateOrderBillForm.getOrderId());
+            orderBill.setPayAmount(orderBill.getTotalAmount());
+            orderBillMapper.insert(orderBill);
+
+            //插入分账信息数据
+            OrderProfitsharing orderProfitsharing = new OrderProfitsharing();
+            BeanUtils.copyProperties(updateOrderBillForm, orderProfitsharing);
+            orderProfitsharing.setOrderId(updateOrderBillForm.getOrderId());
+            //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
+            //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
+            //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
+            //orderProfitsharing.setRuleId(updateOrderBillForm.getProfitsharingRuleId());
+            orderProfitsharing.setRuleId(1l);
+            orderProfitsharing.setStatus(2);
+            orderProfitsharing.setDriverIncome(updateOrderBillForm.getDriverIncome());
+            orderProfitsharing.setOrderAmount(updateOrderBillForm.getOrderAmount());
+            orderProfitsharing.setPaymentFee(updateOrderBillForm.getPaymentFee());
+            orderProfitsharing.setPaymentRate(updateOrderBillForm.getPaymentRate());
+            orderProfitsharing.setCreateTime(new Date());
+            orderProfitsharing.setUpdateTime(new Date());
+            orderProfitsharing.setDriverTaxRate(updateOrderBillForm.getDriverTaxRate());
+            orderProfitsharing.setDriverTaxFee(updateOrderBillForm.getDriverTaxFee());
+            orderProfitsharingMapper.insert(orderProfitsharing);
+        } else {
+            throw new zdyException(ResultCodeEnum.UPDATE_ERROR);
+        }
+        return true;
+    }
+
+    /**
+     * 查询用户的订单信息
+     *
+     * @param pageParam
+     * @param customerId
+     * @return
+     */
+    @Override
+    public PageVo findCustomerOrderPage(Page<OrderInfo> pageParam, Long customerId) {
+        IPage<OrderListVo> orderListVoIPage = orderInfoMapper.selectCustomerOrderPage(pageParam, customerId);
+        return new PageVo(orderListVoIPage.getRecords(), orderListVoIPage.getPages(), orderListVoIPage.getTotal());
+    }
+
+    /**
+     * 查询司机的订单信息
+     *
+     * @param pageParam
+     * @param driverId
+     * @return
+     */
+    @Override
+    public PageVo findDriverOrderPage(Page<OrderInfo> pageParam, Long driverId) {
+        IPage<OrderListVo> pageInfo = orderInfoMapper.selectDriverOrderPage(pageParam, driverId);
+        return new PageVo(pageInfo.getRecords(), pageInfo.getPages(), pageInfo.getTotal());
+    }
+
+    /**
+     * 用户取消订单
+     *
+     * @param orderId
+     * @return
+     */
+    @Override
+    public Boolean customerCancelNoAcceptOrder(Long orderId) {
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setStatus(9); // 用户取消
+        orderInfo.setId(orderId);
+        orderInfo.setUpdateTime(new Date());
+        int i = orderInfoMapper.updateById(orderInfo);
+        return i == 1 ? true : false;
+    }
+
+    /**
+     * 根据订单id获取实际账单信息
+     *
+     * @param orderId
+     * @return
+     */
+    @Override
+    public OrderBillVo getOrderBillInfo(Long orderId) {
+        OrderBill orderBill = orderBillMapper.selectOne(new LambdaQueryWrapper<OrderBill>().eq(OrderBill::getOrderId, orderId));
+        OrderBillVo orderBillVo = new OrderBillVo();
+        BeanUtils.copyProperties(orderBill, orderBillVo);
+        return orderBillVo;
+    }
+
+    /**
+     * 根据订单id获取实际分账信息
+     *
+     * @param orderId
+     * @return
+     */
+    @Override
+    public OrderProfitsharingVo getOrderProfitsharing(Long orderId) {
+        OrderProfitsharing orderProfitsharing = orderProfitsharingMapper.selectOne(new LambdaQueryWrapper<OrderProfitsharing>().eq(OrderProfitsharing::getOrderId, orderId));
+        OrderProfitsharingVo orderProfitsharingVo = new OrderProfitsharingVo();
+        BeanUtils.copyProperties(orderProfitsharing, orderProfitsharingVo);
+        return orderProfitsharingVo;
+    }
+
+    /**
+     * 发送账单信息
+     *
+     * @param orderId
+     * @param driverId
+     * @return
+     */
+    @Override
+    public Boolean sendOrderBillInfo(Long orderId, Long driverId) {
+        //更新订单信息
+        LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(OrderInfo::getId, orderId);
+        queryWrapper.eq(OrderInfo::getDriverId, driverId);
+        //更新字段
+        OrderInfo updateOrderInfo = new OrderInfo();
+        updateOrderInfo.setStatus(OrderStatus.UNPAID.getStatus());
+        //只能更新自己的订单
+        int row = orderInfoMapper.update(updateOrderInfo, queryWrapper);
+        if (row == 1) {
+            //记录日志
+            this.log(orderId, OrderStatus.UNPAID.getStatus());
+        } else {
+            throw new zdyException(ResultCodeEnum.UPDATE_ERROR);
+        }
+        return true;
     }
 
     //插入日志
