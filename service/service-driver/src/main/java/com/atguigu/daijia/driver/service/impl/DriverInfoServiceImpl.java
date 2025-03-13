@@ -348,11 +348,22 @@ public class DriverInfoServiceImpl extends ServiceImpl<DriverInfoMapper, DriverI
         //获取当前年
         int year = new DateTime().getYear();
         //获取初次申领年
-        int year1 =  new DateTime(driverInfo.getDriverLicenseIssueDate()).getYear();
+        int year1 = new DateTime(driverInfo.getDriverLicenseIssueDate()).getYear();
         //驾龄
         Integer driverLicenseAge = year - year1 + 1;
         driverInfoVo.setDriverLicenseAge(driverLicenseAge);
         return driverInfoVo;
+    }
+
+    /**
+     * 获取司机openid
+     * @param driverId
+     * @return
+     */
+    @Override
+    public String getDriverOpenId(Long driverId) {
+        DriverInfo driverInfo = this.getOne(new LambdaQueryWrapper<DriverInfo>().eq(DriverInfo::getId, driverId).select(DriverInfo::getWxOpenId));
+        return driverInfo.getWxOpenId();
     }
 
     /**

@@ -8,9 +8,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 @FeignClient(value = "service-customer")
 public interface CustomerInfoFeignClient {
+    /**
+     * 获取客户OpenId
+     *
+     * @param customerId
+     * @return
+     */
+    @GetMapping("/customer/info/getCustomerOpenId/{customerId}")
+    Result<String> getCustomerOpenId(@PathVariable("customerId") Long customerId);
 
     /**
      * 获取openid
+     *
      * @param code
      * @return
      */
@@ -19,6 +28,7 @@ public interface CustomerInfoFeignClient {
 
     /**
      * 获取客户登录信息
+     *
      * @param customerId
      * @return
      */

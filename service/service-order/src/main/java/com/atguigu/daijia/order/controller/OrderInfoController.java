@@ -9,6 +9,7 @@ import com.atguigu.daijia.model.form.order.UpdateOrderCartForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
 import com.atguigu.daijia.model.vo.order.OrderBillVo;
+import com.atguigu.daijia.model.vo.order.OrderPayVo;
 import com.atguigu.daijia.model.vo.order.OrderProfitsharingVo;
 import com.atguigu.daijia.order.service.OrderInfoService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -28,6 +29,17 @@ import org.springframework.web.bind.annotation.*;
 public class OrderInfoController {
     @Autowired
     private OrderInfoService orderInfoService;
+
+    @Operation(summary = "更新订单支付信息（已支付）")
+    @GetMapping("/getOrderPayVo/{orderNo}")
+    public Result<Boolean> updateOrderPay(@PathVariable String orderNo) {
+        return Result.ok(orderInfoService.updateOrderPay(orderNo));
+    }
+    @Operation(summary = "获取订单支付信息")
+    @GetMapping("/getOrderPayVo/{orderNo}/{customerId}")
+    public Result<OrderPayVo> getOrderPayVo(@PathVariable String orderNo, @PathVariable Long customerId) {
+        return Result.ok(orderInfoService.getOrderPayVo(orderNo, customerId));
+    }
 
     @Operation(summary = "发送账单信息")
     @GetMapping("/sendOrderBillInfo/{orderId}/{driverId}")

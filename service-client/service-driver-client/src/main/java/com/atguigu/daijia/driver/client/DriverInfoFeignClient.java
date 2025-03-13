@@ -17,6 +17,16 @@ import java.util.List;
 
 @FeignClient(value = "service-driver")
 public interface DriverInfoFeignClient {
+
+    /**
+     * 获取司机OpenId
+     *
+     * @param driverId
+     * @return
+     */
+    @GetMapping("/driver/info/getDriverOpenId/{driverId}")
+    Result<String> getDriverOpenId(@PathVariable("driverId") Long driverId);
+
     /**
      * 小程序授权登录*
      *

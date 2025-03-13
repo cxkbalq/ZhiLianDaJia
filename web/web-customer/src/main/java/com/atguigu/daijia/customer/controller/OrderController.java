@@ -7,6 +7,7 @@ import com.atguigu.daijia.customer.service.OrderService;
 import com.atguigu.daijia.model.form.customer.ExpectOrderForm;
 import com.atguigu.daijia.model.form.customer.SubmitOrderForm;
 import com.atguigu.daijia.model.form.map.CalculateDrivingLineForm;
+import com.atguigu.daijia.model.form.payment.CreateWxPaymentForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.customer.ExpectOrderVo;
 import com.atguigu.daijia.model.vo.driver.DriverInfoVo;
@@ -30,6 +31,22 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
     @Autowired
     private OrderService orderService;
+
+    @Operation(summary = "支付状态查询")
+    @CheckLogin
+    @GetMapping("/queryPayStatus/{orderNo}")
+    public Result<Boolean> queryPayStatus(@PathVariable String orderNo) {
+        return Result.ok(orderService.queryPayStatus(orderNo));
+    }
+
+    @Operation(summary = "创建微信支付")
+    @CheckLogin
+    @PostMapping("/createWxPayment")
+    public Result<Boolean> createWxPayment(@RequestBody CreateWxPaymentForm createWxPaymentForm) {
+        Long customerId = AuthContextHolder.getUserId();
+        createWxPaymentForm.setCustomerId(customerId);
+        return Result.ok(orderService.createWxPayment(createWxPaymentForm));
+    }
 
     @Operation(summary = "预估订单数据")
     @CheckLogin
@@ -112,6 +129,7 @@ public class OrderController {
     public Result<OrderServiceLastLocationVo> getOrderServiceLastLocation(@PathVariable Long orderId) {
         return Result.ok(orderService.getOrderServiceLastLocation(orderId));
     }
+
     @Operation(summary = "代驾服务：取消订单")
     @CheckLogin
     @GetMapping("/customerCancelNoAcceptOrder/{orderId}")

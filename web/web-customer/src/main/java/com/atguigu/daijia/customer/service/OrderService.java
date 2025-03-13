@@ -3,6 +3,7 @@ package com.atguigu.daijia.customer.service;
 import com.atguigu.daijia.model.form.customer.ExpectOrderForm;
 import com.atguigu.daijia.model.form.customer.SubmitOrderForm;
 import com.atguigu.daijia.model.form.map.CalculateDrivingLineForm;
+import com.atguigu.daijia.model.form.payment.CreateWxPaymentForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.customer.ExpectOrderVo;
 import com.atguigu.daijia.model.vo.driver.DriverInfoVo;
@@ -35,4 +36,8 @@ public interface OrderService {
     PageVo findCustomerOrderPage(Long customerId, Long page, Long limit);
 
     Boolean customerCancelNoAcceptOrder(Long orderId);
+
+    Boolean createWxPayment(CreateWxPaymentForm createWxPaymentForm);
+
+    Boolean queryPayStatus(String orderNo);
 }

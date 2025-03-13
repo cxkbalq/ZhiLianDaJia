@@ -9,6 +9,7 @@ import com.atguigu.daijia.model.form.order.UpdateOrderCartForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
 import com.atguigu.daijia.model.vo.order.OrderBillVo;
+import com.atguigu.daijia.model.vo.order.OrderPayVo;
 import com.atguigu.daijia.model.vo.order.OrderProfitsharingVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(value = "service-order")
 public interface OrderInfoFeignClient {
+
+    /**
+     * 更新订单支付信息（已支付）
+     * @param orderNo
+     * @return
+     */
+    @GetMapping("/order/info/getOrderPayVo/{orderNo}")
+    public Result<Boolean> updateOrderPay(@PathVariable String orderNo);
+
     /**
      * 司机发送账单信息
      *
@@ -183,4 +193,14 @@ public interface OrderInfoFeignClient {
      */
     @GetMapping("/order/info/customerCancelNoAcceptOrder/{orderId}")
     Result<Boolean> customerCancelNoAcceptOrder(@PathVariable Long orderId);
+
+    /**
+     * 获取订单支付信息
+     *
+     * @param orderNo
+     * @param customerId
+     * @return
+     */
+    @GetMapping("/order/info/getOrderPayVo/{orderNo}/{customerId}")
+    Result<OrderPayVo> getOrderPayVo(@PathVariable("orderNo") String orderNo, @PathVariable("customerId") Long customerId);
 }

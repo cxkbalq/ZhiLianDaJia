@@ -13,32 +13,38 @@ import com.atguigu.daijia.model.form.order.StartDriveForm;
 import com.atguigu.daijia.model.form.order.UpdateOrderBillForm;
 import com.atguigu.daijia.model.form.order.UpdateOrderCartForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
-import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
-import com.atguigu.daijia.model.vo.order.OrderBillVo;
-import com.atguigu.daijia.model.vo.order.OrderListVo;
-import com.atguigu.daijia.model.vo.order.OrderProfitsharingVo;
+import com.atguigu.daijia.model.vo.order.*;
 import com.atguigu.daijia.order.mapper.OrderBillMapper;
 import com.atguigu.daijia.order.mapper.OrderInfoMapper;
 import com.atguigu.daijia.order.mapper.OrderProfitsharingMapper;
 import com.atguigu.daijia.order.mapper.OrderStatusLogMapper;
 import com.atguigu.daijia.order.service.OrderInfoService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessagePostProcessor;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo> implements OrderInfoService {
 
@@ -54,6 +60,8 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     private OrderBillMapper orderBillMapper;
     @Autowired
     private OrderProfitsharingMapper orderProfitsharingMapper;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     /**
      * 保存订单信息
@@ -67,12 +75,46 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         String orderNo = UUID.randomUUID().toString().replaceAll("-", "");
         orderInfo.setStatus(OrderStatus.WAITING_ACCEPT.getStatus());
         orderInfo.setOrderNo(orderNo);
+        //发送延时消息
+        this.sendDelayMessage(orderInfo.getId());
         this.save(orderInfo);
         //记录日志
         this.log(orderInfo.getId(), orderInfo.getStatus());
         //创建redis标识，减少数据库压力
-        redisTemplate.opsForValue().set(RedisConstant.ORDER_ACCEPT_MARK, orderNo);
+        redisTemplate.opsForValue().set(RedisConstant.ORDER_ACCEPT_MARK, orderNo, 16, TimeUnit.MINUTES);
         return orderInfo.getId();
+    }
+
+    /**
+     * 发送延时消息
+     *
+     * @param orderId
+     */
+    private void sendDelayMessage(Long orderId) {
+        //确保投递成功，以及唯一性
+        CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
+        //AMQP 2.1+：CorrelationData 的 getFuture() 返回的是 CompletableFuture，其回调方法为 whenComplete，而非旧版的 addCallback。
+        correlationData.getFuture().whenComplete(((confirm, throwable) -> {
+            if (throwable != null) {
+                log.error("消息发送失败", throwable);
+            } else {
+                if (confirm.isAck()) {
+                    log.info("消息投递成功, ID: {}", correlationData.getId());
+
+                } else {
+                    log.error("消息投递失败, ID: {}", correlationData.getId());
+                }
+            }
+        }));
+        rabbitTemplate.convertAndSend("daijia.delay.direct", "qx", orderId, new MessagePostProcessor() {
+            @Override
+            public Message postProcessMessage(Message message) throws AmqpException {
+                //15发送消息
+                message.getMessageProperties().setDelay(60000 * 15);
+                return message;
+            }
+        },correlationData);
+        log.info("rabbit发送成功: 延时检测支付状态");
     }
 
     /**
@@ -393,12 +435,19 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             orderProfitsharing.setOrderId(updateOrderBillForm.getOrderId());
             //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
             //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
-            //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1
+            //这个地方理论上是后台可以控制对应的规则文件达到不同效果，从数据库查询，这里为了测试，规则选用id默认为1,
             //orderProfitsharing.setRuleId(updateOrderBillForm.getProfitsharingRuleId());
             orderProfitsharing.setRuleId(1l);
             orderProfitsharing.setStatus(2);
-            orderProfitsharing.setDriverIncome(updateOrderBillForm.getDriverIncome());
+
+            BigDecimal bigDecimal = updateOrderBillForm.getTotalAmount().subtract(updateOrderBillForm.getPaymentFee());
+            //如果有司机费率，那么要减去
+            if (updateOrderBillForm.getDriverTaxFee() != null) {
+                bigDecimal.subtract(updateOrderBillForm.getDriverTaxFee());
+            }
+            orderProfitsharing.setDriverIncome(bigDecimal);
             orderProfitsharing.setOrderAmount(updateOrderBillForm.getOrderAmount());
+            //平台费率
             orderProfitsharing.setPaymentFee(updateOrderBillForm.getPaymentFee());
             orderProfitsharing.setPaymentRate(updateOrderBillForm.getPaymentRate());
             orderProfitsharing.setCreateTime(new Date());
@@ -509,7 +558,45 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         return true;
     }
 
-    //插入日志
+    /**
+     * 获取订单支付信息
+     *
+     * @param orderNo
+     * @param customerId
+     * @return
+     */
+    @Override
+    public OrderPayVo getOrderPayVo(String orderNo, Long customerId) {
+        OrderPayVo orderPayVo = orderInfoMapper.selectOrderPayVo(orderNo, customerId);
+        if (null != orderPayVo) {
+            String content = orderPayVo.getStartLocation() + " 到 " + orderPayVo.getEndLocation();
+            orderPayVo.setContent(content);
+        }
+        return orderPayVo;
+    }
+
+    /**
+     * 更新订单支付信息（已支付）
+     *
+     * @param orderNo
+     * @return
+     */
+    @Override
+    public Boolean updateOrderPay(String orderNo) {
+        LambdaUpdateWrapper<OrderInfo> orderInfoLambdaUpdateWrapper = new LambdaUpdateWrapper<>();
+        orderInfoLambdaUpdateWrapper.eq(OrderInfo::getOrderNo, orderNo);
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setUpdateTime(new Date());
+        orderInfo.setStatus(8);
+        return this.update(orderInfo, orderInfoLambdaUpdateWrapper);
+    }
+
+    /**
+     * 插入日志
+     *
+     * @param orderId
+     * @param status
+     */
     public void log(Long orderId, Integer status) {
         OrderStatusLog orderStatusLog = new OrderStatusLog();
         orderStatusLog.setOrderId(orderId);

@@ -2,17 +2,21 @@ package com.atguigu.daijia.customer.service.impl;
 
 import com.atguigu.daijia.common.execption.zdyException;
 import com.atguigu.daijia.common.result.ResultCodeEnum;
+import com.atguigu.daijia.customer.client.CustomerInfoFeignClient;
 import com.atguigu.daijia.customer.service.OrderService;
 import com.atguigu.daijia.dispatch.client.NewOrderFeignClient;
 import com.atguigu.daijia.driver.client.DriverInfoFeignClient;
 import com.atguigu.daijia.map.client.LocationFeignClient;
 import com.atguigu.daijia.map.client.MapFeignClient;
+import com.atguigu.daijia.map.client.WxPayFeignClient;
 import com.atguigu.daijia.model.entity.order.OrderInfo;
 import com.atguigu.daijia.model.enums.OrderStatus;
 import com.atguigu.daijia.model.form.customer.ExpectOrderForm;
 import com.atguigu.daijia.model.form.customer.SubmitOrderForm;
 import com.atguigu.daijia.model.form.map.CalculateDrivingLineForm;
 import com.atguigu.daijia.model.form.order.OrderInfoForm;
+import com.atguigu.daijia.model.form.payment.CreateWxPaymentForm;
+import com.atguigu.daijia.model.form.payment.PaymentInfoForm;
 import com.atguigu.daijia.model.form.rules.FeeRuleRequestForm;
 import com.atguigu.daijia.model.vo.base.PageVo;
 import com.atguigu.daijia.model.vo.customer.ExpectOrderVo;
@@ -24,6 +28,7 @@ import com.atguigu.daijia.model.vo.map.OrderServiceLastLocationVo;
 import com.atguigu.daijia.model.vo.order.CurrentOrderInfoVo;
 import com.atguigu.daijia.model.vo.order.OrderBillVo;
 import com.atguigu.daijia.model.vo.order.OrderInfoVo;
+import com.atguigu.daijia.model.vo.order.OrderPayVo;
 import com.atguigu.daijia.model.vo.rules.FeeRuleResponseVo;
 import com.atguigu.daijia.order.client.OrderInfoFeignClient;
 import com.atguigu.daijia.rules.client.FeeRuleFeignClient;
@@ -57,8 +62,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private LocationFeignClient locationFeignClient;
+
+    @Autowired
+    private WxPayFeignClient payFeignClient;
     @Autowired
     private ThreadPoolExecutor pool;
+    @Autowired
+    private CustomerInfoFeignClient customerInfoFeignClient;
 
     @Override
     public ExpectOrderVo expectOrder(ExpectOrderForm expectOrderForm) {
@@ -284,5 +294,32 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Boolean customerCancelNoAcceptOrder(Long orderId) {
         return newOrderFeignClient.customerCancelNoAcceptOrder(orderId).getData();
+    }
+
+    /**
+     * 创建微信支付
+     * @param createWxPaymentForm
+     * @return
+     */
+    @Override
+    public Boolean createWxPayment(CreateWxPaymentForm createWxPaymentForm) {
+        PaymentInfoForm paymentInfoForm=new PaymentInfoForm();
+        paymentInfoForm.setOrderNo(createWxPaymentForm.getOrderNo());
+        paymentInfoForm.setPayWay(1);
+        OrderPayVo data = orderInfoFeignClient.getOrderPayVo(createWxPaymentForm.getOrderNo(), createWxPaymentForm.getCustomerId()).getData();
+        paymentInfoForm.setDriverOpenId(String.valueOf(driverInfoFeignClient.getDriverOpenId(data.getDriverId()).getData()));
+        paymentInfoForm.setCustomerOpenId(String.valueOf(customerInfoFeignClient.getCustomerOpenId(data.getCustomerId()).getData()));
+        paymentInfoForm.setAmount(data.getPayAmount());
+        return payFeignClient.createWxPayment(paymentInfoForm).getData();
+    }
+
+    /**
+     * 查询订单状态
+     * @param orderNo
+     * @return
+     */
+    @Override
+    public Boolean queryPayStatus(String orderNo) {
+        return payFeignClient.queryPayStatus(orderNo).getData();
     }
 }

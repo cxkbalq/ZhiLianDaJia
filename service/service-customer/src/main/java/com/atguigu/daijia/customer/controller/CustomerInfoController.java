@@ -26,6 +26,12 @@ public class CustomerInfoController {
     @Autowired
     private CustomerInfoService customerInfoService;
 
+    @Operation(summary = "获取客户OpenId")
+    @GetMapping("/getCustomerOpenId/{customerId}")
+    public Result<String> getCustomerOpenId(@PathVariable Long customerId) {
+        return Result.ok(customerInfoService.getCustomerOpenId(customerId));
+    }
+
     /**
      * 获取客户登录信息
      *

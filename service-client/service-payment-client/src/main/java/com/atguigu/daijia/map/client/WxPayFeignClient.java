@@ -1,10 +1,39 @@
 package com.atguigu.daijia.map.client;
 
+import com.atguigu.daijia.common.result.Result;
+import com.atguigu.daijia.model.form.payment.PaymentInfoForm;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 
 @FeignClient(value = "service-payment")
 public interface WxPayFeignClient {
+    /**
+     * 支付状态查询
+     *
+     * @param orderNo
+     * @return
+     */
+    @GetMapping("/payment/wxPay/queryPayStatus/{orderNo}")
+    Result<Boolean> queryPayStatus(@PathVariable("orderNo") String orderNo);
 
+    /**
+     * 插入支付数据
+     *
+     * @param paymentInfoForm
+     * @return
+     */
+    @PostMapping("/payment/wxPay/insterPayInfo")
+    Result<Boolean> insterPayInfo(@RequestBody PaymentInfoForm paymentInfoForm);
 
+    /**
+     * 创建微信支付
+     * @param paymentInfoForm
+     * @return
+     */
+    @PostMapping("/payment/wxPay/createWxPayment")
+    public Result<Boolean> createWxPayment(@RequestBody PaymentInfoForm paymentInfoForm);
 }

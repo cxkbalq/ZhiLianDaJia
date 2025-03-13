@@ -18,21 +18,22 @@
     </properties>
 
     <dependencies>
+        <!--AMQP依赖，包含RabbitMQ-->
         <dependency>
-            <groupId>com.rabbitmq</groupId>
-            <artifactId>amqp-client</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.amqp</groupId>
-            <artifactId>spring-amqp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.amqp</groupId>
-            <artifactId>spring-rabbit</artifactId>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.atguigu.daijia</groupId>-->
+<!--            <artifactId>rabbit-util</artifactId>-->
+<!--            <version>1.0</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
+        <!--seata-->
+
         <dependency>
             <groupId>com.atguigu.daijia</groupId>
-            <artifactId>rabbit-util</artifactId>
+            <artifactId>service-payment-client</artifactId>
             <version>1.0</version>
             <scope>compile</scope>
         </dependency>

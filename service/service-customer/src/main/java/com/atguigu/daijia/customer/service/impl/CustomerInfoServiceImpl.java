@@ -3,25 +3,21 @@ package com.atguigu.daijia.customer.service.impl;
 import cn.binarywang.wx.miniapp.api.WxMaService;
 import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
 import com.atguigu.daijia.common.execption.zdyException;
-import com.atguigu.daijia.common.result.Result;
 import com.atguigu.daijia.common.result.ResultCodeEnum;
 import com.atguigu.daijia.customer.mapper.CustomerInfoMapper;
 import com.atguigu.daijia.customer.service.CustomerInfoService;
 import com.atguigu.daijia.customer.service.CustomerLoginLogService;
 import com.atguigu.daijia.model.entity.customer.CustomerInfo;
+import com.atguigu.daijia.model.entity.customer.CustomerLoginLog;
 import com.atguigu.daijia.model.vo.customer.CustomerLoginVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.atguigu.daijia.model.entity.customer.CustomerLoginLog;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
 @Slf4j
 @Service
@@ -32,7 +28,11 @@ public class CustomerInfoServiceImpl extends ServiceImpl<CustomerInfoMapper, Cus
     @Autowired
     private CustomerLoginLogService customerLoginLogService;
 
-
+    /**
+     * 获取用户登录信息
+     * @param customerId
+     * @return
+     */
     @Override
     public CustomerLoginVo getCustomerLoginInfo(Long customerId){
         //查询数据，获取数据
@@ -44,6 +44,16 @@ public class CustomerInfoServiceImpl extends ServiceImpl<CustomerInfoMapper, Cus
         boolean hasText = StringUtils.hasText(customerInfo.getPhone());
         customerLoginVo.setIsBindPhone(hasText);
         return customerLoginVo;
+    }
+
+    /**
+     * 获取用户openid
+     * @param customerId
+     * @return
+     */
+    @Override
+    public String getCustomerOpenId(Long customerId) {
+        return null;
     }
 
     /**

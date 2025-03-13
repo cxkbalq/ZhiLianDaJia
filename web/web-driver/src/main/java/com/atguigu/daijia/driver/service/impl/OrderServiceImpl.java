@@ -282,7 +282,7 @@ public class OrderServiceImpl implements OrderService {
         //6 计算系统奖励
         CompletableFuture<Long> longCompletableFuture = CompletableFuture.supplyAsync(() -> {
             String startTime = new DateTime(orderInfo.getStartServiceTime()).toString("yyyy-MM-dd") + " 00:00:00";
-            String endTime = new DateTime().toString("yyyy-MM-dd") + " 24:00:00";
+            String endTime = new DateTime().toString("yyyy-MM-dd") + " 23:59:59";
             Long orderNum = orderInfoFeignClient.getOrderNumByTime(startTime, endTime).getData();
             return orderNum;
         }, threadPoolExecutor);
