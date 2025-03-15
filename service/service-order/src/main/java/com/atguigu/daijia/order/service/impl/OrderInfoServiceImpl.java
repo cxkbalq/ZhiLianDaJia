@@ -76,10 +76,9 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         orderInfo.setStatus(OrderStatus.WAITING_ACCEPT.getStatus());
         orderInfo.setOrderNo(orderNo);
         //发送延时消息
-        this.sendDelayMessage(orderInfo.getId());
+        this.sendDelayMessage(orderNo);
         this.save(orderInfo);
-        //记录日志
-        this.log(orderInfo.getId(), orderInfo.getStatus());
+
         //创建redis标识，减少数据库压力
         redisTemplate.opsForValue().set(RedisConstant.ORDER_ACCEPT_MARK, orderNo, 16, TimeUnit.MINUTES);
         return orderInfo.getId();
@@ -88,9 +87,13 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     /**
      * 发送延时消息
      *
-     * @param orderId
+     * @param orderNo
      */
-    private void sendDelayMessage(Long orderId) {
+    private void sendDelayMessage(String orderNo) {
+
+        if (null == orderNo) {
+            throw new zdyException(ResultCodeEnum.DATA_ERROR);
+        }
         //确保投递成功，以及唯一性
         CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
         //AMQP 2.1+：CorrelationData 的 getFuture() 返回的是 CompletableFuture，其回调方法为 whenComplete，而非旧版的 addCallback。
@@ -106,14 +109,14 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
                 }
             }
         }));
-        rabbitTemplate.convertAndSend("daijia.delay.direct", "qx", orderId, new MessagePostProcessor() {
+        rabbitTemplate.convertAndSend("daijia.delay.direct", "qx", orderNo, new MessagePostProcessor() {
             @Override
             public Message postProcessMessage(Message message) throws AmqpException {
                 //15发送消息
                 message.getMessageProperties().setDelay(60000 * 15);
                 return message;
             }
-        },correlationData);
+        }, correlationData);
         log.info("rabbit发送成功: 延时检测支付状态");
     }
 
@@ -149,7 +152,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     public Boolean robNewOrder(Long driverId, Long orderId) {
 
         //抢单成功或取消订单，都会删除该key，redis判断，减少数据库压力
-        if (!redisTemplate.hasKey(RedisConstant.ORDER_ACCEPT_MARK)) {
+        if (Boolean.FALSE.equals(redisTemplate.hasKey(RedisConstant.ORDER_ACCEPT_MARK))) {
             //抢单失败
             throw new zdyException(ResultCodeEnum.COB_NEW_ORDER_FAIL);
         }
@@ -173,7 +176,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             //获取到锁
             if (flag) {
                 //二次判断，防止重复抢单
-                if (!redisTemplate.hasKey(RedisConstant.ORDER_ACCEPT_MARK)) {
+                if (Boolean.FALSE.equals(redisTemplate.hasKey(RedisConstant.ORDER_ACCEPT_MARK))) {
                     //抢单失败
                     throw new zdyException(ResultCodeEnum.COB_NEW_ORDER_FAIL);
                 }
@@ -440,12 +443,12 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             orderProfitsharing.setRuleId(1l);
             orderProfitsharing.setStatus(2);
 
-            BigDecimal bigDecimal = updateOrderBillForm.getTotalAmount().subtract(updateOrderBillForm.getPaymentFee());
-            //如果有司机费率，那么要减去
-            if (updateOrderBillForm.getDriverTaxFee() != null) {
-                bigDecimal.subtract(updateOrderBillForm.getDriverTaxFee());
-            }
-            orderProfitsharing.setDriverIncome(bigDecimal);
+//            BigDecimal bigDecimal = updateOrderBillForm.getTotalAmount().subtract(updateOrderBillForm.getPaymentFee());
+//            //如果有司机费率，那么要减去
+//            if (updateOrderBillForm.getDriverTaxFee() != null) {
+//                bigDecimal.subtract(updateOrderBillForm.getDriverTaxFee());
+//            }
+            orderProfitsharing.setDriverIncome(updateOrderBillForm.getDriverIncome());
             orderProfitsharing.setOrderAmount(updateOrderBillForm.getOrderAmount());
             //平台费率
             orderProfitsharing.setPaymentFee(updateOrderBillForm.getPaymentFee());
@@ -487,19 +490,38 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         return new PageVo(pageInfo.getRecords(), pageInfo.getPages(), pageInfo.getTotal());
     }
 
+
     /**
-     * 用户取消订单
+     * 用户自动取消订单
      *
-     * @param orderId
+     * @param orderid
      * @return
      */
     @Override
-    public Boolean customerCancelNoAcceptOrder(Long orderId) {
+    public Boolean customerCancelNoAcceptOrder(String orderid) {
         OrderInfo orderInfo = new OrderInfo();
         orderInfo.setStatus(9); // 用户取消
-        orderInfo.setId(orderId);
         orderInfo.setUpdateTime(new Date());
-        int i = orderInfoMapper.updateById(orderInfo);
+        LambdaUpdateWrapper<OrderInfo> lambdaUpdateWrapper = new LambdaUpdateWrapper<>();
+        lambdaUpdateWrapper.eq(OrderInfo::getOrderNo, orderid);
+        int i = orderInfoMapper.update(orderInfo, lambdaUpdateWrapper);
+        return i == 1 ? true : false;
+    }
+
+    /**
+     * 用户主动取消订单
+     *
+     * @param orderNo
+     * @return
+     */
+    @Override
+    public Boolean customerCancelNoAcceptOrder2(Long orderNo) {
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setStatus(9); // 用户取消
+        orderInfo.setUpdateTime(new Date());
+        LambdaUpdateWrapper<OrderInfo> lambdaUpdateWrapper = new LambdaUpdateWrapper<>();
+        lambdaUpdateWrapper.eq(OrderInfo::getOrderNo, orderNo);
+        int i = orderInfoMapper.update(orderInfo, lambdaUpdateWrapper);
         return i == 1 ? true : false;
     }
 
@@ -589,6 +611,22 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         orderInfo.setUpdateTime(new Date());
         orderInfo.setStatus(8);
         return this.update(orderInfo, orderInfoLambdaUpdateWrapper);
+    }
+
+    /**
+     * 更新订单优惠券金额
+     *
+     * @param orderId
+     * @param couponAmount
+     * @return
+     */
+    @Override
+    public Boolean updateCouponAmount(Long orderId, BigDecimal couponAmount) {
+        int row = orderBillMapper.updateCouponAmount(orderId, couponAmount);
+        if (row != 1) {
+            throw new zdyException(ResultCodeEnum.UPDATE_ERROR);
+        }
+        return true;
     }
 
     /**

@@ -33,6 +33,8 @@ public class FeeRuleServiceImpl implements FeeRuleService {
         feeRuleRequest.setStartTime(new DateTime(feeRuleRequestForm.getStartTime()).toString("HH:mm:ss"));
         feeRuleRequest.setWaitMinute(feeRuleRequestForm.getWaitMinute());
         log.info("传入参数：{}", JSON.toJSONString(feeRuleRequest));
+        //测试专用
+       // feeRuleRequest.setDistance(new BigDecimal(6.7));
 
         //创建规则会话
         KieSession kieSession = DroolsConfig.loadForRule(RULES_CUSTOMER_RULES_DRL);
@@ -47,9 +49,7 @@ public class FeeRuleServiceImpl implements FeeRuleService {
         // 中止会话
         kieSession.dispose();
         log.info("计算结果：{}", JSON.toJSONString(feeRuleResponse));
-        feeRuleResponse.setTotalAmount(feeRuleResponse.getBaseDistanceFee().add(feeRuleResponse.getExceedLongDistancePrice())
-                .add(feeRuleResponse.getExceedDistancePrice())
-                .add(feeRuleResponse.getExceedWaitMinutePrice()));
+//        feeRuleResponse.setTotalAmount();
         //封装返回对象
         FeeRuleResponseVo feeRuleResponseVo = new FeeRuleResponseVo();
         BeanUtils.copyProperties(feeRuleResponse, feeRuleResponseVo);

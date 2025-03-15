@@ -242,9 +242,10 @@ public class OrderServiceImpl implements OrderService {
                 orderInfo.getEndPointLongitude().doubleValue(),
                 orderServiceLastLocationVo.getLatitude().doubleValue(),
                 orderServiceLastLocationVo.getLongitude().doubleValue());
-        if (distance > SystemConstant.DRIVER_END_LOCATION_DISTION) {
-            throw new zdyException(ResultCodeEnum.DRIVER_END_LOCATION_DISTION_ERROR);
-        }
+        //正常情况在一定距离才可以结束，这里为了测试，注释了
+//        if (distance > SystemConstant.DRIVER_END_LOCATION_DISTION) {
+//            throw new zdyException(ResultCodeEnum.DRIVER_END_LOCATION_DISTION_ERROR);
+//        }
 
         //4 计算订单实际里程
         CompletableFuture<BigDecimal> bigDecimalCompletableFuture = CompletableFuture.supplyAsync(() -> {

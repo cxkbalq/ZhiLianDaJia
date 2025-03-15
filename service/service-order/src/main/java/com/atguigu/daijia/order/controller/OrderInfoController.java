@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+
 
 @Tag(name = "订单API接口管理")
 @RestController
@@ -35,6 +37,7 @@ public class OrderInfoController {
     public Result<Boolean> updateOrderPay(@PathVariable String orderNo) {
         return Result.ok(orderInfoService.updateOrderPay(orderNo));
     }
+
     @Operation(summary = "获取订单支付信息")
     @GetMapping("/getOrderPayVo/{orderNo}/{customerId}")
     public Result<OrderPayVo> getOrderPayVo(@PathVariable String orderNo, @PathVariable Long customerId) {
@@ -137,9 +140,9 @@ public class OrderInfoController {
     @GetMapping("/customerCancelNoAcceptOrder/{orderId}")
     public Result<Boolean> customerCancelNoAcceptOrder(@PathVariable Long orderId) {
         log.info("乘客端取消订单");
-        Boolean b = orderInfoService.customerCancelNoAcceptOrder(orderId);
-        return Result.ok(b);
+        Boolean b = orderInfoService.customerCancelNoAcceptOrder2(orderId);
 
+        return Result.ok(b);
     }
 
 
@@ -177,6 +180,12 @@ public class OrderInfoController {
         pageVo.setPage(page);
         pageVo.setLimit(limit);
         return Result.ok(pageVo);
+    }
+
+    @Operation(summary = "更新订单优惠券金额")
+    @GetMapping("/updateCouponAmount/{orderId}/{couponAmount}")
+    public Result<Boolean> updateCouponAmount(@PathVariable Long orderId, @PathVariable BigDecimal couponAmount) {
+        return Result.ok(orderInfoService.updateCouponAmount(orderId, couponAmount));
     }
 }
 

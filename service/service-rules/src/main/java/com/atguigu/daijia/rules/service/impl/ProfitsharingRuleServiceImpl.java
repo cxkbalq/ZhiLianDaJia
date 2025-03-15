@@ -35,7 +35,7 @@ public class ProfitsharingRuleServiceImpl implements ProfitsharingRuleService {
         ProfitsharingRuleRequest profitsharingRuleRequest = new ProfitsharingRuleRequest();
         profitsharingRuleRequest.setOrderAmount(profitsharingRuleRequestForm.getOrderAmount());
         profitsharingRuleRequest.setOrderNum(profitsharingRuleRequestForm.getOrderNum());
-        log.info("传入参数：{}", JSON.toJSONString(profitsharingRuleRequest));
+        log.info("分账传入参数：{}", JSON.toJSONString(profitsharingRuleRequest));
 
         //获取最新订单费用规则
         //ProfitsharingRule profitsharingRule = rewardRuleMapper.selectOne(new LambdaQueryWrapper<ProfitsharingRule>().orderByDesc(ProfitsharingRule::getId).last("limit 1"));
@@ -50,7 +50,7 @@ public class ProfitsharingRuleServiceImpl implements ProfitsharingRuleService {
         kieSession.fireAllRules();
         // 中止会话
         kieSession.dispose();
-        log.info("计算结果：{}", JSON.toJSONString(profitsharingRuleResponse));
+        log.info("分账计算结果：{}", JSON.toJSONString(profitsharingRuleResponse));
 
         //封装返回对象
         ProfitsharingRuleResponseVo profitsharingRuleResponseVo = new ProfitsharingRuleResponseVo();

@@ -2,6 +2,7 @@ package com.atguigu.daijia.customer.service.impl;
 
 import com.atguigu.daijia.common.execption.zdyException;
 import com.atguigu.daijia.common.result.ResultCodeEnum;
+import com.atguigu.daijia.coupon.client.CouponFeignClient;
 import com.atguigu.daijia.customer.client.CustomerInfoFeignClient;
 import com.atguigu.daijia.customer.service.OrderService;
 import com.atguigu.daijia.dispatch.client.NewOrderFeignClient;
@@ -11,6 +12,7 @@ import com.atguigu.daijia.map.client.MapFeignClient;
 import com.atguigu.daijia.map.client.WxPayFeignClient;
 import com.atguigu.daijia.model.entity.order.OrderInfo;
 import com.atguigu.daijia.model.enums.OrderStatus;
+import com.atguigu.daijia.model.form.coupon.UseCouponForm;
 import com.atguigu.daijia.model.form.customer.ExpectOrderForm;
 import com.atguigu.daijia.model.form.customer.SubmitOrderForm;
 import com.atguigu.daijia.model.form.map.CalculateDrivingLineForm;
@@ -32,11 +34,13 @@ import com.atguigu.daijia.model.vo.order.OrderPayVo;
 import com.atguigu.daijia.model.vo.rules.FeeRuleResponseVo;
 import com.atguigu.daijia.order.client.OrderInfoFeignClient;
 import com.atguigu.daijia.rules.client.FeeRuleFeignClient;
+import io.seata.spring.annotation.GlobalTransactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -69,6 +73,8 @@ public class OrderServiceImpl implements OrderService {
     private ThreadPoolExecutor pool;
     @Autowired
     private CustomerInfoFeignClient customerInfoFeignClient;
+    @Autowired
+    private CouponFeignClient couponFeignClient;
 
     @Override
     public ExpectOrderVo expectOrder(ExpectOrderForm expectOrderForm) {
@@ -298,23 +304,53 @@ public class OrderServiceImpl implements OrderService {
 
     /**
      * 创建微信支付
+     *
      * @param createWxPaymentForm
      * @return
      */
     @Override
+    @GlobalTransactional
     public Boolean createWxPayment(CreateWxPaymentForm createWxPaymentForm) {
-        PaymentInfoForm paymentInfoForm=new PaymentInfoForm();
+        PaymentInfoForm paymentInfoForm = new PaymentInfoForm();
         paymentInfoForm.setOrderNo(createWxPaymentForm.getOrderNo());
         paymentInfoForm.setPayWay(1);
         OrderPayVo data = orderInfoFeignClient.getOrderPayVo(createWxPaymentForm.getOrderNo(), createWxPaymentForm.getCustomerId()).getData();
+        //获取司机微信openId
         paymentInfoForm.setDriverOpenId(String.valueOf(driverInfoFeignClient.getDriverOpenId(data.getDriverId()).getData()));
+        //乘客微信openId
         paymentInfoForm.setCustomerOpenId(String.valueOf(customerInfoFeignClient.getCustomerOpenId(data.getCustomerId()).getData()));
-        paymentInfoForm.setAmount(data.getPayAmount());
+
+        //处理优惠券
+        BigDecimal couponAmount = null;
+        //支付时选择过一次优惠券，如果支付失败或未支付，下次支付时不能再次选择，只能使用第一次选中的优惠券（前端已控制，后端再次校验）
+        if (null == data.getCouponAmount() && null != createWxPaymentForm.getCustomerCouponId() && createWxPaymentForm.getCustomerCouponId() != 0) {
+            UseCouponForm useCouponForm = new UseCouponForm();
+            useCouponForm.setOrderId(data.getOrderId());
+            useCouponForm.setCustomerCouponId(createWxPaymentForm.getCustomerCouponId());
+            useCouponForm.setOrderAmount(data.getPayAmount());
+            useCouponForm.setCustomerId(createWxPaymentForm.getCustomerId());
+            couponAmount = couponFeignClient.useCoupon(useCouponForm).getData();
+        }
+
+        //更新账单优惠券金额
+        //支付金额
+        BigDecimal payAmount = data.getPayAmount();
+        if (null != couponAmount) {
+            Boolean isUpdate = orderInfoFeignClient.updateCouponAmount(data.getOrderId(), couponAmount).getData();
+            if (!isUpdate) {
+                throw new zdyException(ResultCodeEnum.DATA_ERROR);
+            }
+            //当前支付金额 = 支付金额 - 优惠券金额
+            payAmount = payAmount.subtract(couponAmount);
+        }
+
+        paymentInfoForm.setAmount(payAmount);
         return payFeignClient.createWxPayment(paymentInfoForm).getData();
     }
 
     /**
      * 查询订单状态
+     *
      * @param orderNo
      * @return
      */

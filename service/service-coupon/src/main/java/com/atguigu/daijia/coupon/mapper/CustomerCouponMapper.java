@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
 public interface CustomerCouponMapper extends BaseMapper<CustomerCoupon> {
+    CustomerCoupon selectCustomerCoupon(Long id);
 
-
+    int updateUseState(Long customerCouponId);
 }

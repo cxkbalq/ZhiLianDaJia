@@ -17,12 +17,24 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.math.BigDecimal;
+
 
 @FeignClient(value = "service-order")
 public interface OrderInfoFeignClient {
+    /**
+     * 更新优惠券金额
+     *
+     * @param orderId
+     * @param couponAmount
+     * @return
+     */
+    @GetMapping("/order/info/updateCouponAmount/{orderId}/{couponAmount}")
+    Result<Boolean> updateCouponAmount(@PathVariable Long orderId, @PathVariable BigDecimal couponAmount);
 
     /**
      * 更新订单支付信息（已支付）
+     *
      * @param orderNo
      * @return
      */

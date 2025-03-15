@@ -168,7 +168,7 @@ rule "计算总金额"
         /*规则条件，到工作内存中查找FeeRuleRequest对象
         里面出来的结果只能是ture或者false
         $rule是绑定变量名，可以任意命名，官方推荐$符号，定义了绑定变量名，可以在then部分操作fact对象*/
-        $rule:FeeRuleRequest(distance.doubleValue() > 0.0)
+        $rule:FeeRuleRequest(distance.doubleValue() >=0.0)
     then
         //订单总金额 = 基础里程费 + 超出基础里程的费 + 等候费 + 远程费
         BigDecimal distanceFee = feeRuleResponse.getBaseDistanceFee().add(feeRuleResponse.getExceedDistance().multiply(feeRuleResponse.getExceedDistancePrice()));

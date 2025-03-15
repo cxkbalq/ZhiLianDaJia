@@ -13,6 +13,8 @@ import com.atguigu.daijia.model.vo.order.OrderProfitsharingVo;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.math.BigDecimal;
+
 public interface OrderInfoService extends IService<OrderInfo> {
 
     Long saveOrderInfo(OrderInfoForm orderInfoForm);
@@ -39,7 +41,8 @@ public interface OrderInfoService extends IService<OrderInfo> {
 
     PageVo findDriverOrderPage(Page<OrderInfo> pageParam, Long driverId);
 
-    Boolean customerCancelNoAcceptOrder(Long orderId);
+    Boolean customerCancelNoAcceptOrder(String orderNo);
+    Boolean customerCancelNoAcceptOrder2(Long orderid);
 
     OrderBillVo getOrderBillInfo(Long orderId);
 
@@ -50,4 +53,6 @@ public interface OrderInfoService extends IService<OrderInfo> {
     OrderPayVo getOrderPayVo(String orderNo, Long customerId);
 
     Boolean updateOrderPay(String orderNo);
+
+    Boolean updateCouponAmount(Long orderId, BigDecimal couponAmount);
 }

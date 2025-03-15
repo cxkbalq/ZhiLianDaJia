@@ -21,8 +21,8 @@ public class SpringRabbitListener {
             value = @Queue(value = "daijia.delay.queue",durable = "true"),
             key = "qx"
     ))
-    public void DelayMessage(Long orderId){
+    public void DelayMessage(String orderNo){
         log.info("Rabbit接收成功:"+"DelayMessage调用");
-        orderInfoService.customerCancelNoAcceptOrder(orderId);
+        orderInfoService.customerCancelNoAcceptOrder(orderNo);
     }
 }
